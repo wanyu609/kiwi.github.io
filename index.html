@@ -6,37 +6,21 @@
     <title>☁️ 雲端記帳與健康追蹤</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 手機桌面 App 專屬圖示 (已改為 jpg 並更新版號) -->
-    <link rel="apple-touch-icon" href="icon.jpg?v=4">
-    <link rel="icon" type="image/jpeg" href="icon.jpg?v=4">
-
-    <!-- Firebase SDK (移除了 Auth 模組，讓載入更快) -->
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+    <!-- 手機桌面 App 專屬圖示 -->
+    <link rel="apple-touch-icon" href="icon.jpg?v=5">
+    <link rel="icon" type="image/jpeg" href="icon.jpg?v=5">
+    
+    <!-- 已經完全移除 Firebase，實現純本機極速運作 -->
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen pb-10">
 
-    <!-- 你的專屬 Firebase 設定 -->
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyCHXMLw4sBwohZH71uVMkUec-THVauxdkg",
-            authDomain: "ji-ji-jang.firebaseapp.com",
-            projectId: "ji-ji-jang",
-            storageBucket: "ji-ji-jang.firebasestorage.app",
-            messagingSenderId: "570493954735",
-            appId: "1:570493954735:web:8e9182ad6f8cf7bf0a425a"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-    </script>
-
-    <!-- 頂部導航 (移除了登入區塊) -->
+    <!-- 頂部導航 -->
     <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
-        <h1 class="text-xl font-bold">☁️ 記帳 & 健康追蹤</h1>
+        <h1 class="text-xl font-bold">📱 記帳 & 健康追蹤 (本機版)</h1>
         <button id="feedback-open-btn" class="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1 rounded-full text-xs font-bold shadow transition">💡 系統回報</button>
     </div>
 
-    <!-- 主要內容區 (免登入直接顯示) -->
+    <!-- 主要內容區 -->
     <div id="app-content" class="max-w-5xl mx-auto mt-4 px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
         
         <!-- 左側：新增表單 -->
@@ -91,12 +75,12 @@
                 </div>
 
                 <button type="submit" id="submit-btn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-blue-700 transition duration-200 active:scale-95 text-lg">
-                    新增至雲端 ☁️
+                    儲存紀錄 💾
                 </button>
             </form>
         </div>
 
-        <!-- 右側：雲端紀錄列表與統計 -->
+        <!-- 右側：本機紀錄列表與統計 -->
         <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-[750px]">
             <div class="flex justify-between items-center border-b pb-4 mb-4">
                 <h2 class="text-xl font-bold text-blue-600">📊 歷史與統計</h2>
@@ -110,7 +94,7 @@
 
             <div class="flex justify-between items-center border-b pb-2 mb-3 mt-2">
                 <h3 class="text-md font-bold text-gray-600">📃 紀錄明細</h3>
-                <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full animate-pulse">即時同步中</span>
+                <span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">本機儲存</span>
             </div>
 
             <div id="expense-list" class="space-y-3 overflow-y-auto pr-2 flex-grow">
@@ -126,7 +110,7 @@
             <p class="text-xs text-gray-500 mb-4">您可以回報 Bug、修正 AI 營養數據，或許願新功能！</p>
             <textarea id="feedback-input" rows="4" class="w-full border rounded-xl p-3 mb-4 bg-gray-50 focus:ring-2 focus:ring-blue-400 text-sm" placeholder="請在此輸入您的建議或問題..."></textarea>
             <div class="space-y-2">
-                <button id="feedback-firebase-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow transition text-sm">☁️ 存入 Firebase 雲端</button>
+                <button id="feedback-local-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow transition text-sm">💾 存入本機備忘</button>
                 <button id="feedback-email-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow transition text-sm">📧 透過 Email 寄出</button>
                 <button id="feedback-close-btn" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl transition text-sm">取消</button>
             </div>
@@ -142,37 +126,37 @@
         document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
         document.getElementById('filter-month').value = `${yyyy}-${mm}`;
 
-        // 網頁載入時立刻讀取資料
-        window.onload = () => loadDataFromCloud();
+        // 網頁載入時立刻讀取本機資料
+        window.onload = () => loadDataFromLocal();
 
         // 監聽月份切換，重新載入資料
-        document.getElementById('filter-month').addEventListener('change', () => loadDataFromCloud());
+        document.getElementById('filter-month').addEventListener('change', () => loadDataFromLocal());
 
         // --- 系統回報視窗邏輯 ---
         const feedbackModal = document.getElementById('feedback-modal');
         document.getElementById('feedback-open-btn').onclick = () => feedbackModal.classList.remove('hidden');
         document.getElementById('feedback-close-btn').onclick = () => feedbackModal.classList.add('hidden');
 
-        document.getElementById('feedback-firebase-btn').onclick = () => {
+        // 選項1改為存入本機
+        document.getElementById('feedback-local-btn').onclick = () => {
             const text = document.getElementById('feedback-input').value.trim();
             if (!text) { alert("請先輸入回報內容！"); return; }
-            db.collection("shared_feedbacks").add({
-                content: text,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                dateStr: `${yyyy}-${mm}-${dd}`
-            }).then(() => {
-                alert("✅ 回報已成功存入雲端！");
-                document.getElementById('feedback-input').value = '';
-                feedbackModal.classList.add('hidden');
-            }).catch(e => alert("❌ 儲存失敗：" + e.message));
+            
+            let feedbacks = JSON.parse(localStorage.getItem('my_feedbacks')) || [];
+            feedbacks.push({ content: text, dateStr: `${yyyy}-${mm}-${dd}` });
+            localStorage.setItem('my_feedbacks', JSON.stringify(feedbacks));
+            
+            alert("✅ 回報已成功存入手機記憶體！");
+            document.getElementById('feedback-input').value = '';
+            feedbackModal.classList.add('hidden');
         };
 
+        // 透過 Email 寄出 (保留你的信箱)
         document.getElementById('feedback-email-btn').onclick = () => {
             const text = document.getElementById('feedback-input').value.trim();
             if (!text) { alert("請先輸入回報內容！"); return; }
             const subject = encodeURIComponent("【記帳App系統回報與建議】");
             const body = encodeURIComponent(`回報內容：\n${text}`);
-            // 已更新為你的專屬信箱
             window.location.href = `mailto:randyliu492@gmail.com?subject=${subject}&body=${body}`;
             feedbackModal.classList.add('hidden');
         };
@@ -223,14 +207,9 @@
             };
         }
 
-        // --- 提交表單至雲端 ---
+        // --- 提交表單：儲存至本機 (Local Storage) ---
         document.getElementById('expense-form').addEventListener('submit', function(e) {
             e.preventDefault();
-
-            const btn = document.getElementById('submit-btn');
-            btn.innerHTML = '上傳中... ⏳';
-            btn.disabled = true;
-            btn.classList.add('opacity-50');
 
             const isFood = isFoodCheck.checked;
             const foodName = document.getElementById('food-name').value;
@@ -238,10 +217,11 @@
             const monthStr = selectedDateStr.substring(0, 7);
 
             let newExpense = {
+                id: Date.now().toString(), // 產生一個唯一編號
                 category: document.getElementById('category').value,
                 amount: parseInt(document.getElementById('amount').value),
                 note: document.getElementById('note').value,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                timestamp: Date.now(), // 紀錄當下時間，用來排序
                 dateStr: selectedDateStr, 
                 monthStr: monthStr,
                 isFood: isFood
@@ -253,86 +233,85 @@
                 if (currentPhotoBase64) newExpense.photoBase64 = currentPhotoBase64;
             }
 
-            console.log("準備上傳資料至 shared_expenses...", newExpense);
+            // 1. 從手機記憶體拿出舊資料 (如果沒有就建立空陣列)
+            let expenses = JSON.parse(localStorage.getItem('my_expenses')) || [];
+            
+            // 2. 把新資料塞進去
+            expenses.push(newExpense);
+            
+            // 3. 把最新的一包資料存回手機記憶體
+            localStorage.setItem('my_expenses', JSON.stringify(expenses));
 
-            // 存至共用的 shared_expenses 集合
-            db.collection("shared_expenses").add(newExpense)
-              .then((docRef) => {
-                  console.log("寫入成功，ID:", docRef.id);
-                  this.reset();
-                  document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
-                  foodFields.classList.add('hidden');
-                  document.getElementById('photo-preview').classList.add('hidden');
-                  currentPhotoBase64 = null;
-                  alert("✅ 上傳成功！");
-              })
-              .catch(error => {
-                  console.error("詳細錯誤內容:", error);
-                  alert("❌ 雲端拒絕寫入！\n錯誤代碼：" + error.code + "\n錯誤訊息：" + error.message);
-              })
-              .finally(() => {
-                  btn.innerHTML = '新增至雲端 ☁️';
-                  btn.disabled = false;
-                  btn.classList.remove('opacity-50');
-              });
+            // 4. 重置表單並提示成功
+            this.reset();
+            document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
+            foodFields.classList.add('hidden');
+            document.getElementById('photo-preview').classList.add('hidden');
+            currentPhotoBase64 = null;
+            
+            // 5. 立即重新讀取畫面
+            loadDataFromLocal();
         });
 
-        // --- 從雲端讀取資料並計算總額 ---
-        function loadDataFromCloud() {
+        // --- 從本機讀取資料並計算總額 ---
+        function loadDataFromLocal() {
             const targetMonth = document.getElementById('filter-month').value; 
+            const list = document.getElementById('expense-list');
+            list.innerHTML = '';
+            let totalAmount = 0;
 
-            // 讀取共用資料庫 shared_expenses
-            db.collection("shared_expenses")
-              .where("monthStr", "==", targetMonth)
-              .onSnapshot(snapshot => {
-                  const list = document.getElementById('expense-list');
-                  list.innerHTML = '';
-                  let totalAmount = 0;
-                  
-                  if(snapshot.empty) {
-                      list.innerHTML = '<p class="text-center text-gray-400 mt-10">這個月還沒有紀錄喔，開始記帳吧！</p>';
-                      document.getElementById('monthly-total').innerText = '$0';
-                      return;
-                  }
+            // 從本機讀取資料
+            let allExpenses = JSON.parse(localStorage.getItem('my_expenses')) || [];
 
-                  let records = [];
-                  snapshot.forEach(doc => records.push(doc.data()));
-                  records.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+            // 篩選出符合目前選擇月份的資料
+            let monthExpenses = allExpenses.filter(item => item.monthStr === targetMonth);
 
-                  records.forEach(data => {
-                      totalAmount += data.amount; 
-                      
-                      let foodHtml = '';
-                      if (data.isFood) {
-                          let imgHtml = data.photoBase64 ? `<img src="${data.photoBase64}" class="w-12 h-12 rounded object-cover ml-2">` : '';
-                          foodHtml = `
-                            <div class="mt-2 bg-blue-50 rounded p-2 text-sm text-blue-800 flex justify-between items-center border border-blue-100">
-                                <div>
-                                    <span class="font-bold">🤖 AI 分析 (${data.foodName})：</span>
-                                    熱量 ${data.nutrition?.calories || 0} 大卡 / 蛋白質 ${data.nutrition?.protein || 0}g
-                                </div>
-                                ${imgHtml}
-                            </div>
-                          `;
-                      }
+            if(monthExpenses.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 mt-10">這個月還沒有紀錄喔，開始記帳吧！</p>';
+                document.getElementById('monthly-total').innerText = '$0';
+                return;
+            }
 
-                      list.innerHTML += `
-                          <div class="p-4 border rounded-lg hover:shadow-md transition bg-white shadow-sm">
-                              <div class="flex justify-between items-start mb-1">
-                                  <div class="flex items-center space-x-2">
-                                      <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm font-bold shadow-sm">${data.category}</span>
-                                      <span class="text-gray-500 font-medium text-sm tracking-wide">${data.dateStr}</span>
-                                  </div>
-                                  <span class="text-red-500 font-bold text-lg">$${data.amount}</span>
-                              </div>
-                              ${data.note ? `<p class="text-gray-600 text-sm mt-2 ml-1">📝 ${data.note}</p>` : ''}
-                              ${foodHtml}
+            // 按照日期與時間由新到舊排序
+            monthExpenses.sort((a, b) => {
+                if (b.dateStr !== a.dateStr) return b.dateStr.localeCompare(a.dateStr);
+                return b.timestamp - a.timestamp;
+            });
+
+            // 產生畫面 HTML
+            monthExpenses.forEach(data => {
+                totalAmount += data.amount; 
+                
+                let foodHtml = '';
+                if (data.isFood) {
+                    let imgHtml = data.photoBase64 ? `<img src="${data.photoBase64}" class="w-12 h-12 rounded object-cover ml-2">` : '';
+                    foodHtml = `
+                      <div class="mt-2 bg-blue-50 rounded p-2 text-sm text-blue-800 flex justify-between items-center border border-blue-100">
+                          <div>
+                              <span class="font-bold">🤖 AI 分析 (${data.foodName})：</span>
+                              熱量 ${data.nutrition?.calories || 0} 大卡 / 蛋白質 ${data.nutrition?.protein || 0}g
                           </div>
-                      `;
-                  });
+                          ${imgHtml}
+                      </div>
+                    `;
+                }
 
-                  document.getElementById('monthly-total').innerText = '$' + totalAmount.toLocaleString();
-              });
+                list.innerHTML += `
+                    <div class="p-4 border rounded-lg hover:shadow-md transition bg-white shadow-sm">
+                        <div class="flex justify-between items-start mb-1">
+                            <div class="flex items-center space-x-2">
+                                <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm font-bold shadow-sm">${data.category}</span>
+                                <span class="text-gray-500 font-medium text-sm tracking-wide">${data.dateStr}</span>
+                            </div>
+                            <span class="text-red-500 font-bold text-lg">$${data.amount}</span>
+                        </div>
+                        ${data.note ? `<p class="text-gray-600 text-sm mt-2 ml-1">📝 ${data.note}</p>` : ''}
+                        ${foodHtml}
+                    </div>
+                `;
+            });
+
+            document.getElementById('monthly-total').innerText = '$' + totalAmount.toLocaleString();
         }
     </script>
 </body>
