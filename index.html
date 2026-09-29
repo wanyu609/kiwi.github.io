@@ -253,9 +253,12 @@
                 if (currentPhotoBase64) newExpense.photoBase64 = currentPhotoBase64;
             }
 
+            console.log("準備上傳資料至 shared_expenses...", newExpense);
+
             // 存至共用的 shared_expenses 集合
             db.collection("shared_expenses").add(newExpense)
-              .then(() => {
+              .then((docRef) => {
+                  console.log("寫入成功，ID:", docRef.id);
                   this.reset();
                   document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
                   foodFields.classList.add('hidden');
@@ -264,8 +267,8 @@
                   alert("✅ 上傳成功！");
               })
               .catch(error => {
-                  console.error("寫入失敗:", error);
-                  alert("❌ 錯誤：無法上傳！\n原因：" + error.message + "\n(請確認 Firebase 規則是否已改為 if true)");
+                  console.error("詳細錯誤內容:", error);
+                  alert("❌ 雲端拒絕寫入！\n錯誤代碼：" + error.code + "\n錯誤訊息：" + error.message);
               })
               .finally(() => {
                   btn.innerHTML = '新增至雲端 ☁️';
