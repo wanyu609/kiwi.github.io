@@ -17,7 +17,7 @@
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen pb-10">
 
-    <!-- 你的專屬 Firebase 設定 (從截圖中幫你帶入) -->
+    <!-- 你的專屬 Firebase 設定 -->
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyCHXMLw4sBwohZH71uVMkUec-THVauxdkg",
@@ -35,6 +35,357 @@
     </script>
 
     <!-- 頂部導航 -->
+    <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center space-x-3">
+            <h1 class="text-xl font-bold">☁️ 記帳 & 健康追蹤</h1>
+            <button id="feedback-open-btn" class="hidden bg-blue-500 hover:bg-blue-400 text-white px-3 py-1 rounded-full text-xs font-bold shadow transition">💡 系統回報</button>
+        </div>
+        <div id="user-info" class="flex items-center space-x-3">
+            <button id="login-btn" class="bg-white text-blue-600 px-4 py-1 rounded-full font-bold shadow hover:bg-gray-100 text-sm">Google 登入</button>
+            <div id="user-profile" class="hidden flex items-center space-x-2">
+                <img id="user-pic" src="" alt="user" class="w-8 h-8 rounded-full border-2 border-white">
+                <span id="user-name" class="font-bold text-sm hidden md:inline"></span>
+                <button id="logout-btn" class="text-xs text-blue-200 hover:text-white underline">登出</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登入提示區塊 -->
+    <div id="login-warning" class="m-4 p-6 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded shadow text-center">
+        <p class="font-bold text-lg mb-2">請先登入以解鎖功能 🔒</p>
+        <p class="text-sm">您的所有資料將安全地同步儲存於雲端。</p>
+    </div>
+
+    <!-- 主要內容區 (登入後顯示) -->
+    <div id="app-content" class="hidden max-w-5xl mx-auto mt-4 px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- 左側：新增表單 -->
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 h-fit">
+            <h2 class="text-xl font-bold mb-4 border-b pb-2 text-blue-600">✍️ 新增紀錄</h2>
+            <form id="expense-form" class="space-y-4">
+                
+                <!-- 新增：日期選擇器 -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-600 mb-1">📅 日期</label>
+                    <input type="date" id="expense-date" required class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400 bg-gray-50 text-gray-700 font-bold">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-600 mb-1">分類</label>
+                    <select id="category" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400 bg-gray-50">
+                        <option value="早餐">🥐 早餐</option>
+                        <option value="午餐">🍱 午餐</option>
+                        <option value="晚餐">🍽️ 晚餐</option>
+                        <option value="飲料">🧋 飲料/點心</option>
+                        <option value="交通">🚌 交通</option>
+                        <option value="購物">🛒 購物</option>
+                        <option value="其他">✨ 其他</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-600 mb-1">金額 (元)</label>
+                    <input type="number" id="amount" required class="w-full border rounded-lg p-2 text-xl font-bold text-red-500 focus:ring-2 focus:ring-blue-400 bg-gray-50" placeholder="0">
+                </div>
+
+                <div class="flex items-center space-x-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <input type="checkbox" id="is-food" class="w-5 h-5 text-blue-600 rounded">
+                    <label for="is-food" class="font-bold text-blue-800">🥗 這是一份餐點 (啟用 AI 分析)</label>
+                </div>
+
+                <div id="food-fields" class="hidden space-y-4 p-4 border-2 border-blue-200 rounded-lg bg-blue-50/50">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-600 mb-1">食物名稱</label>
+                        <input type="text" id="food-name" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" placeholder="例如：鮪魚蛋餅、雞腿便當">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-bold text-gray-600 mb-1">上傳照片 (自動極致壓縮)</label>
+                        <input type="file" id="photo-upload" accept="image/*" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200">
+                        <img id="photo-preview" src="" class="mt-2 hidden w-32 h-32 object-cover rounded-lg border shadow-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-600 mb-1">備註 (選填)</label>
+                    <input type="text" id="note" class="w-full border rounded-lg p-2 bg-gray-50" placeholder="隨手記點什麼...">
+                </div>
+
+                <button type="submit" id="submit-btn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-blue-700 transition duration-200 active:scale-95 text-lg">
+                    新增至雲端 ☁️
+                </button>
+            </form>
+        </div>
+
+        <!-- 右側：雲端紀錄列表與統計 (大升級) -->
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-[750px]">
+            <!-- 統計標題與月份選擇器 -->
+            <div class="flex justify-between items-center border-b pb-4 mb-4">
+                <h2 class="text-xl font-bold text-blue-600">📊 歷史與統計</h2>
+                <input type="month" id="filter-month" class="border-2 border-blue-200 rounded-lg p-1 text-sm font-bold text-gray-700 bg-white focus:ring-2 focus:ring-blue-400">
+            </div>
+
+            <!-- 本月總計儀表板 -->
+            <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 mb-4 text-center border border-blue-200 shadow-sm">
+                <p class="text-sm text-blue-800 font-bold mb-1">該月總花費</p>
+                <p class="text-4xl font-extrabold text-red-500 tracking-wider" id="monthly-total">$0</p>
+            </div>
+
+            <div class="flex justify-between items-center border-b pb-2 mb-3 mt-2">
+                <h3 class="text-md font-bold text-gray-600">📃 紀錄明細</h3>
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full animate-pulse">即時同步中</span>
+            </div>
+
+            <!-- 列表區塊 -->
+            <div id="expense-list" class="space-y-3 overflow-y-auto pr-2 flex-grow">
+                <p class="text-center text-gray-400 mt-10">載入中或該月無紀錄...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 💡 系統回報彈跳視窗 -->
+    <div id="feedback-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-100">
+            <h3 class="text-xl font-bold text-blue-600 mb-2">💡 系統回報與建議</h3>
+            <p class="text-xs text-gray-500 mb-4">您可以回報 Bug、修正 AI 營養數據，或許願新功能！</p>
+            <textarea id="feedback-input" rows="4" class="w-full border rounded-xl p-3 mb-4 bg-gray-50 focus:ring-2 focus:ring-blue-400 text-sm" placeholder="請在此輸入您的建議或問題..."></textarea>
+            <div class="space-y-2">
+                <button id="feedback-firebase-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow transition text-sm">☁️ 存入 Firebase 雲端</button>
+                <button id="feedback-email-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow transition text-sm">📧 透過 Email 寄出</button>
+                <button id="feedback-close-btn" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl transition text-sm">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 初始化日期設定 ---
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
+        document.getElementById('filter-month').value = `${yyyy}-${mm}`;
+
+        // 監聽月份切換，重新載入資料
+        document.getElementById('filter-month').addEventListener('change', () => {
+            if (currentUser) loadDataFromCloud();
+        });
+
+        // --- 登入狀態監聽 ---
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('login-warning').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                document.getElementById('login-btn').classList.add('hidden');
+                document.getElementById('user-profile').classList.remove('hidden');
+                document.getElementById('feedback-open-btn').classList.remove('hidden');
+                document.getElementById('user-pic').src = user.photoURL;
+                document.getElementById('user-name').innerText = user.displayName;
+                loadDataFromCloud();
+            } else {
+                currentUser = null;
+                document.getElementById('login-warning').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('hidden');
+                document.getElementById('login-btn').classList.remove('hidden');
+                document.getElementById('user-profile').classList.add('hidden');
+                document.getElementById('feedback-open-btn').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('login-btn').onclick = () => auth.signInWithPopup(provider);
+        document.getElementById('logout-btn').onclick = () => auth.signOut();
+
+        // --- 系統回報視窗邏輯 ---
+        const feedbackModal = document.getElementById('feedback-modal');
+        document.getElementById('feedback-open-btn').onclick = () => feedbackModal.classList.remove('hidden');
+        document.getElementById('feedback-close-btn').onclick = () => feedbackModal.classList.add('hidden');
+
+        document.getElementById('feedback-firebase-btn').onclick = () => {
+            const text = document.getElementById('feedback-input').value.trim();
+            if (!text) { alert("請先輸入回報內容！"); return; }
+            db.collection("users").doc(currentUser.uid).collection("feedbacks").add({
+                content: text, userEmail: currentUser.email, userName: currentUser.displayName,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                dateStr: `${yyyy}-${mm}-${dd}`
+            }).then(() => {
+                alert("✅ 回報已成功存入您的 Firebase 雲端！");
+                document.getElementById('feedback-input').value = '';
+                feedbackModal.classList.add('hidden');
+            }).catch(e => alert("❌ 儲存失敗：" + e.message));
+        };
+
+        document.getElementById('feedback-email-btn').onclick = () => {
+            const text = document.getElementById('feedback-input').value.trim();
+            if (!text) { alert("請先輸入回報內容！"); return; }
+            const subject = encodeURIComponent("【記帳App系統回報與建議】");
+            const body = encodeURIComponent(`回報內容：\n${text}\n\n回報用戶：${currentUser.displayName} (${currentUser.email})`);
+            window.location.href = `mailto:your-email@example.com?subject=${subject}&body=${body}`;
+            feedbackModal.classList.add('hidden');
+        };
+
+        // --- 介面互動：顯示/隱藏食物選項 ---
+        const isFoodCheck = document.getElementById('is-food');
+        const foodFields = document.getElementById('food-fields');
+        isFoodCheck.addEventListener('change', () => {
+            if(isFoodCheck.checked) {
+                foodFields.classList.remove('hidden');
+                document.getElementById('food-name').required = true;
+            } else {
+                foodFields.classList.add('hidden');
+                document.getElementById('food-name').required = false;
+            }
+        });
+
+        // --- 圖片極致壓縮功能 ---
+        let currentPhotoBase64 = null;
+        document.getElementById('photo-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 150; 
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.4); 
+                    const preview = document.getElementById('photo-preview');
+                    preview.src = currentPhotoBase64;
+                    preview.classList.remove('hidden');
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+
+        function simulateAI(foodName) {
+            return {
+                calories: Math.floor(Math.random() * 400 + 100),
+                protein: Math.floor(Math.random() * 20 + 5)
+            };
+        }
+
+        // --- 提交表單至雲端 ---
+        document.getElementById('expense-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const btn = document.getElementById('submit-btn');
+            btn.innerHTML = '上傳中... ⏳';
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+
+            const isFood = isFoodCheck.checked;
+            const foodName = document.getElementById('food-name').value;
+            
+            // 取得使用者選擇的日期
+            const selectedDateStr = document.getElementById('expense-date').value; 
+            const monthStr = selectedDateStr.substring(0, 7); // 擷取月份，如 "2026-09"
+
+            let newExpense = {
+                category: document.getElementById('category').value,
+                amount: parseInt(document.getElementById('amount').value),
+                note: document.getElementById('note').value,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                dateStr: selectedDateStr, // 儲存使用者選的日期
+                monthStr: monthStr,       // 儲存月份標籤 (用來統計)
+                isFood: isFood
+            };
+
+            if (isFood && foodName) {
+                newExpense.foodName = foodName;
+                newExpense.nutrition = simulateAI(foodName);
+                if (currentPhotoBase64) newExpense.photoBase64 = currentPhotoBase64;
+            }
+
+            db.collection("users").doc(currentUser.uid).collection("expenses").add(newExpense)
+              .then(() => {
+                  // 表單重置，但保留日期為今天
+                  this.reset();
+                  document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
+                  foodFields.classList.add('hidden');
+                  document.getElementById('photo-preview').classList.add('hidden');
+                  currentPhotoBase64 = null;
+                  alert("✅ 上傳成功！");
+              })
+              .catch(error => {
+                  console.error("寫入失敗:", error);
+                  alert("❌ 錯誤：無法上傳！\n原因：" + error.message);
+              })
+              .finally(() => {
+                  btn.innerHTML = '新增至雲端 ☁️';
+                  btn.disabled = false;
+                  btn.classList.remove('opacity-50');
+              });
+        });
+
+        // --- 從雲端讀取資料並計算總額 ---
+        function loadDataFromCloud() {
+            const targetMonth = document.getElementById('filter-month').value; // 獲取使用者選擇的月份
+
+            // 只抓取該月份的資料
+            db.collection("users").doc(currentUser.uid).collection("expenses")
+              .where("monthStr", "==", targetMonth)
+              .onSnapshot(snapshot => {
+                  const list = document.getElementById('expense-list');
+                  list.innerHTML = '';
+                  let totalAmount = 0; // 準備計算總額
+                  
+                  if(snapshot.empty) {
+                      list.innerHTML = '<p class="text-center text-gray-400 mt-10">這個月還沒有紀錄喔，開始記帳吧！</p>';
+                      document.getElementById('monthly-total').innerText = '$0';
+                      return;
+                  }
+
+                  // 為了避免 Firebase 需要複雜的索引設定，我們在網頁端幫資料「按日期排好」
+                  let records = [];
+                  snapshot.forEach(doc => records.push(doc.data()));
+                  records.sort((a, b) => b.dateStr.localeCompare(a.dateStr)); // 讓日期新的排在最上面
+
+                  records.forEach(data => {
+                      totalAmount += data.amount; // 累加總額
+                      
+                      let foodHtml = '';
+                      if (data.isFood) {
+                          let imgHtml = data.photoBase64 ? `<img src="${data.photoBase64}" class="w-12 h-12 rounded object-cover ml-2">` : '';
+                          foodHtml = `
+                            <div class="mt-2 bg-blue-50 rounded p-2 text-sm text-blue-800 flex justify-between items-center border border-blue-100">
+                                <div>
+                                    <span class="font-bold">🤖 AI 分析 (${data.foodName})：</span>
+                                    熱量 ${data.nutrition?.calories || 0} 大卡 / 蛋白質 ${data.nutrition?.protein || 0}g
+                                </div>
+                                ${imgHtml}
+                            </div>
+                          `;
+                      }
+
+                      list.innerHTML += `
+                          <div class="p-4 border rounded-lg hover:shadow-md transition bg-white shadow-sm">
+                              <div class="flex justify-between items-start mb-1">
+                                  <div class="flex items-center space-x-2">
+                                      <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm font-bold shadow-sm">${data.category}</span>
+                                      <span class="text-gray-500 font-medium text-sm tracking-wide">${data.dateStr}</span>
+                                  </div>
+                                  <span class="text-red-500 font-bold text-lg">$${data.amount}</span>
+                              </div>
+                              ${data.note ? `<p class="text-gray-600 text-sm mt-2 ml-1">📝 ${data.note}</p>` : ''}
+                              ${foodHtml}
+                          </div>
+                      `;
+                  });
+
+                  // 將計算好的總額顯示在看板上，並加上千分位逗號
+                  document.getElementById('monthly-total').innerText = '$' + totalAmount.toLocaleString();
+              });
+        }
+    </script>
+</body>
+</html>    <!-- 頂部導航 -->
     <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
         <h1 class="text-xl font-bold">☁️ 記帳 & 健康追蹤</h1>
         <div id="user-info" class="flex items-center space-x-3">
