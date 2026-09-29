@@ -3,25 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>☁️ 雲端記帳與健康追蹤</title>
+    <title>記記帳</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- 引入 Chart.js 來繪製圓餅圖 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <!-- 手機桌面 App 專屬圖示 -->
-    <link rel="apple-touch-icon" href="icon.jpg?v=5">
-    <link rel="icon" type="image/jpeg" href="icon.jpg?v=5">
-    
-    <!-- 已經完全移除 Firebase，實現純本機極速運作 -->
+    <link rel="apple-touch-icon" href="icon.jpg?v=6">
+    <link rel="icon" type="image/jpeg" href="icon.jpg?v=6">
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen pb-10">
 
     <!-- 頂部導航 -->
     <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
-        <h1 class="text-xl font-bold">📱 記帳 & 健康追蹤 (本機版)</h1>
+        <h1 class="text-xl font-bold">📱 記記帳</h1>
         <button id="feedback-open-btn" class="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1 rounded-full text-xs font-bold shadow transition">💡 系統回報</button>
     </div>
 
     <!-- 主要內容區 -->
-    <div id="app-content" class="max-w-5xl mx-auto mt-4 px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div id="app-content" class="max-w-6xl mx-auto mt-4 px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
         
         <!-- 左側：新增表單 -->
         <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 h-fit">
@@ -80,23 +81,32 @@
             </form>
         </div>
 
-        <!-- 右側：本機紀錄列表與統計 -->
+        <!-- 右側：本機紀錄列表與圓餅圖統計 -->
         <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-[750px]">
+            <!-- 月份選擇器 -->
             <div class="flex justify-between items-center border-b pb-4 mb-4">
                 <h2 class="text-xl font-bold text-blue-600">📊 歷史與統計</h2>
                 <input type="month" id="filter-month" class="border-2 border-blue-200 rounded-lg p-1 text-sm font-bold text-gray-700 bg-white focus:ring-2 focus:ring-blue-400">
             </div>
 
-            <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 mb-4 text-center border border-blue-200 shadow-sm">
-                <p class="text-sm text-blue-800 font-bold mb-1">該月總花費</p>
-                <p class="text-4xl font-extrabold text-red-500 tracking-wider" id="monthly-total">$0</p>
+            <!-- 月總額與分類圓餅圖區塊 -->
+            <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 mb-4 border border-blue-200 shadow-sm flex flex-col md:flex-row items-center justify-between">
+                <div class="text-center md:text-left md:w-1/3 mb-4 md:mb-0">
+                    <p class="text-sm text-blue-800 font-bold mb-1">該月總花費</p>
+                    <p class="text-4xl font-extrabold text-red-500 tracking-wider" id="monthly-total">$0</p>
+                </div>
+                <!-- 圓餅圖容器 -->
+                <div class="w-full md:w-2/3 h-40 relative flex justify-center">
+                    <canvas id="category-chart"></canvas>
+                </div>
             </div>
 
             <div class="flex justify-between items-center border-b pb-2 mb-3 mt-2">
                 <h3 class="text-md font-bold text-gray-600">📃 紀錄明細</h3>
-                <span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">本機儲存</span>
+                <span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">點擊垃圾桶可刪除</span>
             </div>
 
+            <!-- 紀錄明細列表 -->
             <div id="expense-list" class="space-y-3 overflow-y-auto pr-2 flex-grow">
                 <p class="text-center text-gray-400 mt-10">載入中或該月無紀錄...</p>
             </div>
@@ -118,40 +128,35 @@
     </div>
 
     <script>
-        // --- 初始化日期設定 ---
+        // --- 初始化日期與圖表 ---
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
         document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
         document.getElementById('filter-month').value = `${yyyy}-${mm}`;
+        
+        let expenseChart = null; // 宣告圖表變數
 
-        // 網頁載入時立刻讀取本機資料
         window.onload = () => loadDataFromLocal();
-
-        // 監聽月份切換，重新載入資料
         document.getElementById('filter-month').addEventListener('change', () => loadDataFromLocal());
 
-        // --- 系統回報視窗邏輯 ---
+        // --- 系統回報視窗 ---
         const feedbackModal = document.getElementById('feedback-modal');
         document.getElementById('feedback-open-btn').onclick = () => feedbackModal.classList.remove('hidden');
         document.getElementById('feedback-close-btn').onclick = () => feedbackModal.classList.add('hidden');
 
-        // 選項1改為存入本機
         document.getElementById('feedback-local-btn').onclick = () => {
             const text = document.getElementById('feedback-input').value.trim();
             if (!text) { alert("請先輸入回報內容！"); return; }
-            
             let feedbacks = JSON.parse(localStorage.getItem('my_feedbacks')) || [];
             feedbacks.push({ content: text, dateStr: `${yyyy}-${mm}-${dd}` });
             localStorage.setItem('my_feedbacks', JSON.stringify(feedbacks));
-            
             alert("✅ 回報已成功存入手機記憶體！");
             document.getElementById('feedback-input').value = '';
             feedbackModal.classList.add('hidden');
         };
 
-        // 透過 Email 寄出 (保留你的信箱)
         document.getElementById('feedback-email-btn').onclick = () => {
             const text = document.getElementById('feedback-input').value.trim();
             if (!text) { alert("請先輸入回報內容！"); return; }
@@ -161,7 +166,7 @@
             feedbackModal.classList.add('hidden');
         };
 
-        // --- 介面互動：顯示/隱藏食物選項 ---
+        // --- 介面互動：食物選項 ---
         const isFoodCheck = document.getElementById('is-food');
         const foodFields = document.getElementById('food-fields');
         isFoodCheck.addEventListener('change', () => {
@@ -174,7 +179,7 @@
             }
         });
 
-        // --- 圖片極致壓縮功能 ---
+        // --- 圖片極致壓縮 ---
         let currentPhotoBase64 = null;
         document.getElementById('photo-upload').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -207,7 +212,19 @@
             };
         }
 
-        // --- 提交表單：儲存至本機 (Local Storage) ---
+        // --- 刪除功能 (全球通用函數) ---
+        window.deleteExpense = function(id) {
+            if (confirm("⚠️ 確定要刪除這筆紀錄嗎？刪除後無法恢復喔！")) {
+                let expenses = JSON.parse(localStorage.getItem('my_expenses')) || [];
+                // 過濾掉被點擊刪除的那一筆
+                expenses = expenses.filter(item => item.id !== id);
+                localStorage.setItem('my_expenses', JSON.stringify(expenses));
+                // 重新載入畫面
+                loadDataFromLocal();
+            }
+        };
+
+        // --- 提交表單 ---
         document.getElementById('expense-form').addEventListener('submit', function(e) {
             e.preventDefault();
 
@@ -217,11 +234,11 @@
             const monthStr = selectedDateStr.substring(0, 7);
 
             let newExpense = {
-                id: Date.now().toString(), // 產生一個唯一編號
+                id: Date.now().toString(), // 產生專屬 ID，方便刪除
                 category: document.getElementById('category').value,
                 amount: parseInt(document.getElementById('amount').value),
                 note: document.getElementById('note').value,
-                timestamp: Date.now(), // 紀錄當下時間，用來排序
+                timestamp: Date.now(),
                 dateStr: selectedDateStr, 
                 monthStr: monthStr,
                 isFood: isFood
@@ -233,54 +250,95 @@
                 if (currentPhotoBase64) newExpense.photoBase64 = currentPhotoBase64;
             }
 
-            // 1. 從手機記憶體拿出舊資料 (如果沒有就建立空陣列)
             let expenses = JSON.parse(localStorage.getItem('my_expenses')) || [];
-            
-            // 2. 把新資料塞進去
             expenses.push(newExpense);
-            
-            // 3. 把最新的一包資料存回手機記憶體
             localStorage.setItem('my_expenses', JSON.stringify(expenses));
 
-            // 4. 重置表單並提示成功
             this.reset();
             document.getElementById('expense-date').value = `${yyyy}-${mm}-${dd}`;
             foodFields.classList.add('hidden');
             document.getElementById('photo-preview').classList.add('hidden');
             currentPhotoBase64 = null;
             
-            // 5. 立即重新讀取畫面
             loadDataFromLocal();
         });
 
-        // --- 從本機讀取資料並計算總額 ---
+        // --- 繪製圓餅圖函數 ---
+        function renderChart(categoryData) {
+            const ctx = document.getElementById('category-chart').getContext('2d');
+            
+            // 如果原本已經有圖表，先銷毀它，不然會疊在一起
+            if (expenseChart) {
+                expenseChart.destroy();
+            }
+
+            // 取得分類名稱跟對應金額
+            const labels = Object.keys(categoryData);
+            const data = Object.values(categoryData);
+
+            // 如果該月沒有花費，就畫一個灰色的空圖表
+            if (data.length === 0) {
+                expenseChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels: ['無紀錄'], datasets: [{ data: [1], backgroundColor: ['#E5E7EB'] }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false } } }
+                });
+                return;
+            }
+
+            // 正式繪製分類圓餅圖
+            expenseChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        // 搭配我們分類的粉嫩色系
+                        backgroundColor: ['#FCA5A5', '#FCD34D', '#86EFAC', '#93C5FD', '#C4B5FD', '#F9A8D4', '#FCA5A5'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 12 } } }
+                    }
+                }
+            });
+        }
+
+        // --- 讀取與計算資料 ---
         function loadDataFromLocal() {
             const targetMonth = document.getElementById('filter-month').value; 
             const list = document.getElementById('expense-list');
             list.innerHTML = '';
             let totalAmount = 0;
+            
+            // 用來統計每個分類的總額
+            let categoryTotals = {};
 
-            // 從本機讀取資料
             let allExpenses = JSON.parse(localStorage.getItem('my_expenses')) || [];
-
-            // 篩選出符合目前選擇月份的資料
             let monthExpenses = allExpenses.filter(item => item.monthStr === targetMonth);
 
             if(monthExpenses.length === 0) {
                 list.innerHTML = '<p class="text-center text-gray-400 mt-10">這個月還沒有紀錄喔，開始記帳吧！</p>';
                 document.getElementById('monthly-total').innerText = '$0';
+                renderChart({}); // 畫出空圖表
                 return;
             }
 
-            // 按照日期與時間由新到舊排序
             monthExpenses.sort((a, b) => {
                 if (b.dateStr !== a.dateStr) return b.dateStr.localeCompare(a.dateStr);
                 return b.timestamp - a.timestamp;
             });
 
-            // 產生畫面 HTML
             monthExpenses.forEach(data => {
                 totalAmount += data.amount; 
+                
+                // 將金額加進對應的分類裡
+                categoryTotals[data.category] = (categoryTotals[data.category] || 0) + data.amount;
                 
                 let foodHtml = '';
                 if (data.isFood) {
@@ -296,6 +354,7 @@
                     `;
                 }
 
+                // 加入垃圾桶刪除按鈕
                 list.innerHTML += `
                     <div class="p-4 border rounded-lg hover:shadow-md transition bg-white shadow-sm">
                         <div class="flex justify-between items-start mb-1">
@@ -303,7 +362,10 @@
                                 <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm font-bold shadow-sm">${data.category}</span>
                                 <span class="text-gray-500 font-medium text-sm tracking-wide">${data.dateStr}</span>
                             </div>
-                            <span class="text-red-500 font-bold text-lg">$${data.amount}</span>
+                            <div class="flex items-center space-x-4">
+                                <span class="text-red-500 font-bold text-lg">$${data.amount}</span>
+                                <button onclick="deleteExpense('${data.id}')" class="text-gray-300 hover:text-red-500 transition text-lg" title="刪除此筆紀錄">🗑️</button>
+                            </div>
                         </div>
                         ${data.note ? `<p class="text-gray-600 text-sm mt-2 ml-1">📝 ${data.note}</p>` : ''}
                         ${foodHtml}
@@ -312,6 +374,9 @@
             });
 
             document.getElementById('monthly-total').innerText = '$' + totalAmount.toLocaleString();
+            
+            // 根據剛剛統計的數據畫出圖表
+            renderChart(categoryTotals);
         }
     </script>
 </body>
