@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雲端記帳與健康追蹤 App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 Firebase 相關套件 -->
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen pb-10">
+
+    <script>
+        // ==========================================
+        // 你的專屬 Firebase 設定
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCHXMLw4sBwohZH71uVMkUec-THVauxdkg",
+            authDomain: "ji-ji-jang.firebaseapp.com",
+            projectId: "ji-ji-jang",
+            storageBucket: "ji-ji-jang.firebasestorage.app",
+            messagingSenderId: "570493954735",
+            appId: "1:570493954735:web:8e9182ad6f8cf7bf0a425a",
+            measurementId: "G-2Q3E4Q2QKX"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let currentUser = null;
+        let expensesData = [];
+    </script>
+
+    <!-- 頂部導覽列 -->
+    <nav class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                ☁️ 記帳 & 健康追蹤
+            </h1>
+            <div class="flex items-center gap-3">
+                <button onclick="openFeedback()" class="text-sm bg-indigo-500 hover:bg-indigo-400 px-3 py-1.5 rounded-full transition shadow">
+                    💡 系統回報
+                </button>
+                <div class="w-px h-6 bg-indigo-400 mx-1"></div>
+                <img id="user-avatar" class="hidden w-8 h-8 rounded-full border-2 border-white" src="" alt="頭像">
+                <button id="login-btn" onclick="loginWithGoogle()" class="bg-white text-indigo-600 px-4 py-1.5 rounded-full text-sm font-semibold hover:bg-gray-100 transition shadow">
+                    Google 登入
+                </button>
+                <button id="logout-btn" onclick="logout()" class="hidden bg-indigo-500 text-white px-4 py-1.5 rounded-full text-sm font-semibold hover:bg-indigo-400 transition shadow border border-indigo-400">
+                    登出
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要內容區 -->
+    <div class="max-w-5xl mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+        
+        <!-- 左側：輸入區 -->
+        <div class="md:col-span-1 space-y-6">
+            
+            <!-- 登入提示區塊 -->
+            <div id="login-prompt" class="bg-white p-8 rounded-2xl shadow text-center">
+                <div class="text-4xl mb-4">🔒</div>
+                <h2 class="text-xl font-bold mb-2">請先登入</h2>
+                <p class="text-gray-500 text-sm mb-4">登入後即可啟用雲端記帳、AI營養分析與跨裝置同步功能！</p>
+                <button onclick="loginWithGoogle()" class="w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg">
+                    Google 帳號登入
+                </button>
+            </div>
+
+            <!-- 新增表單區塊 (登入後顯示) -->
+            <div id="app-content" class="hidden space-y-6">
+                <!-- 總金額面板 -->
+                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-2xl shadow-lg text-white">
+                    <h2 class="text-sm font-medium opacity-80 mb-1">本月總花費 (NT$)</h2>
+                    <div class="text-4xl font-black tracking-tight" id="total-expense">0</div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow">
+                    <h3 class="font-bold text-lg mb-4 text-indigo-900">新增紀錄</h3>
+                    <form id="expense-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">選擇分類</label>
+                            <select id="category" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-500 transition">
+                                <option value="🍱 午餐">🍱 午餐</option>
+                                <option value="🥩 晚餐">🥩 晚餐</option>
+                                <option value="☕ 零食飲料">☕ 零食飲料</option>
+                                <option value="🚗 交通">🚗 交通</option>
+                                <option value="🛒 其他花費">🛒 其他花費</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">金額 (NT$)</label>
+                            <input type="number" id="amount" required min="1" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-500 transition" placeholder="例如: 120">
+                        </div>
+
+                        <!-- 飲食健康追蹤開關 -->
+                        <div class="bg-green-50 p-3 rounded-lg border border-green-100">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="is-food" class="w-4 h-4 text-green-600 rounded cursor-pointer" onchange="toggleFoodFields()">
+                                <span class="text-sm font-bold text-green-800">🥗 這是一份餐點 (啟用 AI 分析)</span>
+                            </label>
+                            
+                            <!-- 隱藏的食物詳細輸入區 -->
+                            <div id="food-fields" class="hidden mt-3 space-y-3 pt-3 border-t border-green-200">
+                                <div>
+                                    <label class="block text-xs text-green-700 mb-1">食物名稱 (AI 將依此計算熱量)</label>
+                                    <input type="text" id="food-name" class="w-full bg-white border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" placeholder="例如: 雞腿便當、珍珠奶茶">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-green-700 mb-1">上傳餐點照片 (自動壓縮)</label>
+                                    <input type="file" id="food-photo" accept="image/*" class="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200">
+                                </div>
+                                <!-- 預覽圖 -->
+                                <img id="photo-preview" class="hidden w-full h-32 object-cover rounded-lg border border-green-200 shadow-sm">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">備註 (可選)</label>
+                            <input type="text" id="note" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-500 transition" placeholder="例如: 和朋友聚餐">
+                        </div>
+                        
+                        <button type="submit" id="submit-btn" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition shadow-lg transform active:scale-95">
+                            新增至雲端 ☁️
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側：列表區 & 健康週報 (登入後顯示) -->
+        <div class="md:col-span-2 hidden" id="right-panel">
+            <div class="bg-white rounded-2xl shadow overflow-hidden">
+                
+                <!-- 分頁切換按鈕 -->
+                <div class="flex border-b bg-gray-50">
+                    <button onclick="switchTab('records')" id="tab-records" class="flex-1 py-4 font-bold text-indigo-600 bg-white border-b-2 border-indigo-600 transition">
+                        📝 記帳明細
+                    </button>
+                    <button onclick="switchTab('health')" id="tab-health" class="flex-1 py-4 font-bold text-gray-500 hover:text-green-600 hover:bg-green-50 transition">
+                        🩺 飲食健康週報
+                    </button>
+                </div>
+
+                <!-- 分頁內容 1：記帳明細 -->
+                <div id="content-records" class="p-6 min-h-[500px]">
+                    <div id="expense-list" class="space-y-4">
+                        <div class="text-center text-gray-400 py-10">載入中...</div>
+                    </div>
+                </div>
+
+                <!-- 分頁內容 2：健康週報 -->
+                <div id="content-health" class="hidden p-6 min-h-[500px] bg-green-50/30">
+                    <h2 class="text-xl font-bold text-green-800 mb-4 flex items-center gap-2">
+                        📊 近七天飲食分析
+                    </h2>
+                    
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="health-stats">
+                        <!-- 統計數據將由 JS 產生 -->
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-green-100">
+                        <h3 class="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            🤖 AI 飲食建議
+                        </h3>
+                        <p id="ai-advice" class="text-gray-600 leading-relaxed text-sm">
+                            資料不足，請先新增包含「食物」的紀錄，AI 將為您分析！
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 系統回報 Modal -->
+    <div id="feedback-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 p-4 opacity-0 transition-opacity">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 transform scale-95 transition-transform duration-300" id="feedback-box">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">💡 系統回報與許願池</h3>
+                <button onclick="closeFeedback()" class="text-gray-400 hover:text-red-500 text-2xl leading-none">&times;</button>
+            </div>
+            <textarea id="feedback-text" rows="4" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:border-indigo-500 mb-4" placeholder="請描述您遇到的問題，或是希望加入的新功能..."></textarea>
+            <button onclick="submitFeedback()" class="w-full bg-gray-800 text-white font-bold py-2.5 rounded-xl hover:bg-black transition">
+                送出回報至雲端
+            </button>
+        </div>
+    </div>
+
+    <!-- 提示框 Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl transform transition-all duration-300 translate-y-20 opacity-0 z-50 flex items-center gap-2">
+        <span id="toast-icon">✅</span>
+        <span id="toast-msg">操作成功</span>
+    </div>
+
+    <script>
+        // ==========================================
+        // UI 元素綁定
+        // ==========================================
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userAvatar = document.getElementById('user-avatar');
+        const loginPrompt = document.getElementById('login-prompt');
+        const appContent = document.getElementById('app-content');
+        const rightPanel = document.getElementById('right-panel');
+        const expenseList = document.getElementById('expense-list');
+        const totalExpenseEl = document.getElementById('total-expense');
+        const form = document.getElementById('expense-form');
+        let currentPhotoBase64 = null; // 儲存壓縮後的照片
+
+        // ==========================================
+        // 1. Google 登入與登出
+        // ==========================================
+        function loginWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).catch(error => showToast("登入失敗：" + error.message, "❌"));
+        }
+
+        function logout() {
+            auth.signOut().then(() => showToast("已成功登出", "👋"));
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                loginBtn.classList.add('hidden');
+                logoutBtn.classList.remove('hidden');
+                userAvatar.src = user.photoURL;
+                userAvatar.classList.remove('hidden');
+                
+                loginPrompt.classList.add('hidden');
+                appContent.classList.remove('hidden');
+                rightPanel.classList.remove('hidden');
+                
+                showToast(`歡迎回來！`, "🎉");
+                loadCloudData();
+            } else {
+                currentUser = null;
+                loginBtn.classList.remove('hidden');
+                logoutBtn.classList.add('hidden');
+                userAvatar.classList.add('hidden');
+                
+                loginPrompt.classList.remove('hidden');
+                appContent.classList.add('hidden');
+                rightPanel.classList.add('hidden');
+                
+                expensesData = [];
+                totalExpenseEl.textContent = "0";
+            }
+        });
+
+        // ==========================================
+        // 2. 資料讀寫與 AI 模擬
+        // ==========================================
+        function loadCloudData() {
+            if (!currentUser) return;
+            
+            // 即時監聽 Firestore
+            db.collection("users").doc(currentUser.uid).collection("expenses")
+              .orderBy("timestamp", "desc")
+              .onSnapshot((querySnapshot) => {
+                  expensesData = [];
+                  let total = 0;
+                  expenseList.innerHTML = ''; 
+                  
+                  if (querySnapshot.empty) {
+                      expenseList.innerHTML = '<div class="text-center text-gray-400 py-10 flex flex-col items-center"><div class="text-4xl mb-2">☁️</div>目前雲端沒有紀錄，記下第一筆花費吧！</div>';
+                      animateValue(totalExpenseEl, 0);
+                      updateHealthDashboard();
+                      return;
+                  }
+
+                  querySnapshot.forEach((doc) => {
+                      const data = doc.data();
+                      data.id = doc.id;
+                      // 如果是這個月的資料，才加進左側總額
+                      const isThisMonth = data.dateStr && data.dateStr.substring(0,7) === new Date().toISOString().substring(0,7);
+                      if(isThisMonth) total += data.amount;
+                      
+                      expensesData.push(data);
+                      renderExpenseItem(data);
+                  });
+                  
+                  animateValue(totalExpenseEl, total);
+                  updateHealthDashboard(); // 資料變動時，同步更新健康週報
+              });
+        }
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const btn = document.getElementById('submit-btn');
+            btn.innerHTML = '上傳中... ⏳';
+            btn.disabled = true;
+
+            const category = document.getElementById('category').value;
+            const amount = parseInt(document.getElementById('amount').value);
+            const note = document.getElementById('note').value;
+            const isFood = document.getElementById('is-food').checked;
+            const foodName = document.getElementById('food-name').value;
+            const now = new Date();
+
+            let newExpense = {
+                category: category,
+                amount: amount,
+                note: note,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                dateStr: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                isFood: isFood
+            };
+
+            if (isFood && foodName) {
+                newExpense.foodName = foodName;
+                newExpense.nutrition = simulateAI(foodName);
+                if (currentPhotoBase64) {
+                    newExpense.photoBase64 = currentPhotoBase64;
+                }
+            }
+
+            db.collection("users").doc(currentUser.uid).collection("expenses").add(newExpense)
+              .then(() => {
+                  form.reset();
+                  toggleFoodFields();
+                  document.getElementById('photo-preview').classList.add('hidden');
+                  currentPhotoBase64 = null;
+                  showToast("已同步至雲端！");
+              })
+              .catch(error => {
+                  showToast("新增失敗", "❌");
+                  console.error(error);
+              })
+              .finally(() => {
+                  btn.innerHTML = '新增至雲端 ☁️';
+                  btn.disabled = false;
+              });
+        });
+
+        function deleteExpense(id) {
+            if (!currentUser) return;
+            if(confirm('確定要從雲端刪除這筆紀錄嗎？')) {
+                db.collection("users").doc(currentUser.uid).collection("expenses").doc(id).delete()
+                  .then(() => showToast("已刪除", "🗑️"))
+                  .catch(() => showToast("刪除失敗", "❌"));
+            }
+        }
+
+        // ==========================================
+        // 3. 圖片壓縮與預覽技術
+        // ==========================================
+        document.getElementById('food-photo').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    // 使用 Canvas 將圖片壓縮為 300px 寬，避免佔用過多 Firestore 空間
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 300;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // 轉為 Base64 (品質 0.6)
+                    currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                    
+                    const preview = document.getElementById('photo-preview');
+                    preview.src = currentPhotoBase64;
+                    preview.classList.remove('hidden');
+                }
+            }
+        });
+
+        function toggleFoodFields() {
+            const isFood = document.getElementById('is-food').checked;
+            const fields = document.getElementById('food-fields');
+            const foodNameInput = document.getElementById('food-name');
+            if (isFood) {
+                fields.classList.remove('hidden');
+                foodNameInput.required = true;
+            } else {
+                fields.classList.add('hidden');
+                foodNameInput.required = false;
+            }
+        }
+
+        // 模擬 AI 營養計算演算法
+        function simulateAI(name) {
+            let cal = 300, pro = 10, fat = 10, sug = 5, sod = 400; // 基準值
+            if(name.includes('便當') || name.includes('飯')) { cal+=400; pro+=15; fat+=15; sod+=500; }
+            if(name.includes('麵')) { cal+=250; pro+=5; fat+=10; sod+=700; }
+            if(name.includes('沙拉')) { cal-=150; pro+=5; fat-=5; sug+=5; sod-=200; }
+            if(name.includes('肉') || name.includes('排') || name.includes('雞')) { cal+=200; pro+=25; fat+=15; sod+=200;}
+            if(name.includes('飲料') || name.includes('茶') || name.includes('奶')) { cal+=150; pro-=8; fat+=5; sug+=35; sod-=300;}
+            if(name.includes('炸')) { cal+=250; fat+=20; sod+=200; }
+            if(name.includes('菜')) { cal-=50; sod-=100; }
+
+            // 加入微小隨機變數讓資料看起來更真實
+            return {
+                cal: Math.max(0, cal + Math.floor(Math.random()*40)),
+                pro: Math.max(0, pro + Math.floor(Math.random()*5)),
+                fat: Math.max(0, fat + Math.floor(Math.random()*5)),
+                sug: Math.max(0, sug + Math.floor(Math.random()*5)),
+                sod: Math.max(0, sod + Math.floor(Math.random()*50))
+            };
+        }
+
+        // ==========================================
+        // 4. UI 渲染與週報邏輯
+        // ==========================================
+        function renderExpenseItem(item) {
+            const div = document.createElement('div');
+            div.className = 'group flex flex-col md:flex-row justify-between md:items-center bg-gray-50 p-4 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition duration-200 gap-4';
+            
+            // 基礎資料
+            let html = `
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center text-2xl shadow-sm flex-shrink-0">
+                        ${item.category.split(' ')[0]}
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <div class="font-bold text-gray-800">
+                            ${item.category.split(' ')[1]} 
+                            ${item.note ? `<span class="text-sm font-normal text-gray-500 ml-1">(${item.note})</span>` : ''}
+                        </div>
+                        <div class="text-xs text-gray-400">${item.dateStr}</div>
+            `;
+
+            // 如果有飲食資料，渲染標籤與圖片
+            if (item.isFood && item.nutrition) {
+                html += `
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded shadow-sm">🔥 ${item.nutrition.cal} 大卡</span>
+                        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded shadow-sm">🥩 蛋 ${item.nutrition.pro}g</span>
+                        <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded shadow-sm">💧 鈉 ${item.nutrition.sod}mg</span>
+                    </div>
+                    ${item.photoBase64 ? `<img src="${item.photoBase64}" class="w-24 h-24 object-cover rounded-lg mt-2 border border-gray-200 shadow-sm">` : ''}
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+                <div class="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto mt-2 md:mt-0 border-t md:border-0 pt-3 md:pt-0 border-gray-200">
+                    <div class="font-black text-xl text-gray-800">NT$ ${item.amount.toLocaleString()}</div>
+                    <button onclick="deleteExpense('${item.id}')" class="md:opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 hover:bg-red-50 transition bg-white p-2 rounded-lg shadow-sm font-bold text-sm">
+                        刪除
+                    </button>
+                </div>
+            `;
+            
+            div.innerHTML = html;
+            expenseList.appendChild(div);
+        }
+
+        // 更新健康週報
+        function updateHealthDashboard() {
+            // 取近 7 天資料
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            const foodData = expensesData.filter(d => {
+                if(!d.isFood || !d.nutrition || !d.timestamp) return false;
+                const date = d.timestamp.toDate ? d.timestamp.toDate() : new Date();
+                return date >= sevenDaysAgo;
+            });
+
+            const statsBox = document.getElementById('health-stats');
+            const aiAdvice = document.getElementById('ai-advice');
+
+            if (foodData.length === 0) {
+                statsBox.innerHTML = '';
+                aiAdvice.innerHTML = "這七天內還沒有記錄任何食物喔！試著在上傳花費時勾選「這是一份餐點」。";
+                return;
+            }
+
+            let totals = { cal: 0, pro: 0, fat: 0, sug: 0, sod: 0 };
+            foodData.forEach(d => {
+                totals.cal += d.nutrition.cal;
+                totals.pro += d.nutrition.pro;
+                totals.fat += d.nutrition.fat;
+                totals.sug += d.nutrition.sug;
+                totals.sod += d.nutrition.sod;
+            });
+
+            // 渲染數據卡片
+            statsBox.innerHTML = `
+                <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                    <div class="text-xs text-red-500 mb-1">🔥 總熱量 (大卡)</div>
+                    <div class="text-2xl font-black text-red-700">${totals.cal}</div>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                    <div class="text-xs text-blue-500 mb-1">🥩 總蛋白 (g)</div>
+                    <div class="text-2xl font-black text-blue-700">${totals.pro}</div>
+                </div>
+                <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
+                    <div class="text-xs text-yellow-600 mb-1">🧈 總脂肪 (g)</div>
+                    <div class="text-2xl font-black text-yellow-700">${totals.fat}</div>
+                </div>
+                <div class="bg-gray-100 p-4 rounded-xl border border-gray-200">
+                    <div class="text-xs text-gray-500 mb-1">🧂 總鈉量 (mg)</div>
+                    <div class="text-2xl font-black text-gray-700">${totals.sod}</div>
+                </div>
+            `;
+
+            // 產生動態 AI 建議
+            let advice = [];
+            const avgCal = totals.cal / 7;
+            const avgPro = totals.pro / 7;
+            const avgSod = totals.sod / 7;
+
+            if(avgCal > 2500) advice.push("🔥 您的每日平均熱量偏高，建議可以把便當的白飯減半，或多選擇沙拉。");
+            else if(avgCal < 1200) advice.push("⚠️ 熱量攝取似乎有點少，請記得按時吃飯確保體力喔！");
+            else advice.push("✅ 熱量控制得相當不錯，繼續保持。");
+
+            if(avgPro < 50) advice.push("💪 蛋白質攝取偏低，建議多吃點雞胸肉、雞蛋或豆漿，幫助肌肉維持。");
+            else advice.push("🥩 蛋白質攝取充足，很棒！");
+
+            if(avgSod > 2400) advice.push("🧂 鈉含量警報！最近可能吃得比較重口味或常吃湯麵，多喝水代謝一下。");
+
+            aiAdvice.innerHTML = `<ul class="list-disc pl-4 space-y-2">${advice.map(a => `<li>${a}</li>`).join('')}</ul>`;
+        }
+
+        // ==========================================
+        // 5. 其他輔助功能 (切換Tab, Modal, Toast)
+        // ==========================================
+        function switchTab(tab) {
+            const tRecords = document.getElementById('tab-records');
+            const tHealth = document.getElementById('tab-health');
+            const cRecords = document.getElementById('content-records');
+            const cHealth = document.getElementById('content-health');
+
+            if (tab === 'records') {
+                tRecords.className = "flex-1 py-4 font-bold text-indigo-600 bg-white border-b-2 border-indigo-600 transition";
+                tHealth.className = "flex-1 py-4 font-bold text-gray-500 hover:text-green-600 hover:bg-green-50 transition";
+                cRecords.classList.remove('hidden');
+                cHealth.classList.add('hidden');
+            } else {
+                tHealth.className = "flex-1 py-4 font-bold text-green-700 bg-green-50 border-b-2 border-green-600 transition";
+                tRecords.className = "flex-1 py-4 font-bold text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition";
+                cHealth.classList.remove('hidden');
+                cRecords.classList.add('hidden');
+            }
+        }
+
+        // 系統回報功能
+        function openFeedback() {
+            const modal = document.getElementById('feedback-modal');
+            const box = document.getElementById('feedback-box');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeFeedback() {
+            const modal = document.getElementById('feedback-modal');
+            const box = document.getElementById('feedback-box');
+            modal.classList.add('opacity-0');
+            box.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        function submitFeedback() {
+            const text = document.getElementById('feedback-text').value;
+            if(!text) return alert("請輸入回報內容");
+            
+            // 寫入雲端 feedback 集合
+            if (currentUser) {
+                db.collection("feedbacks").add({
+                    uid: currentUser.uid,
+                    name: currentUser.displayName,
+                    message: text,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    document.getElementById('feedback-text').value = '';
+                    closeFeedback();
+                    showToast("謝謝回報！已送出", "💌");
+                });
+            } else {
+                // 沒登入也可以送，只不過沒名字
+                db.collection("feedbacks").add({
+                    uid: "guest",
+                    message: text,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    document.getElementById('feedback-text').value = '';
+                    closeFeedback();
+                    showToast("謝謝回報！已送出", "💌");
+                });
+            }
+        }
+
+        function showToast(message, icon = "✅") {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = message;
+            document.getElementById('toast-icon').textContent = icon;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => { toast.classList.add('translate-y-20', 'opacity-0'); }, 3000);
+        }
+
+        function animateValue(obj, end) {
+            let start = parseInt(obj.textContent.replace(/,/g, '')) || 0;
+            if (start === end) return;
+            let duration = 500;
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                obj.innerHTML = Math.floor(progress * (end - start) + start).toLocaleString();
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        }
+    </script>
+</body>
+</html>
